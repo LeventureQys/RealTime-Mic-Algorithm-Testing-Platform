@@ -1,52 +1,52 @@
 #include "AudioCondition.h"
 
-AudioCondition::AudioCondition(QWidget *parent)
-	: QMainWindow(parent)
-	, ui(new Ui::AudioConditionClass())
+AudioCondition::AudioCondition(QWidget* parent)
+    : QMainWindow(parent)
+    , ui(new Ui::AudioConditionClass())
 {
     ui->setupUi(this);
-    // 获取默认音频输入设备
+    // Get the default audio input device
     QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
 
-    // 设置音频格式
+    // Set the audio format
     QAudioFormat format;
     format.setSampleRate(48000);
-    format.setChannelCount(1);  // 使用单声道，方便处理
+    format.setChannelCount(1);  // Use mono for easier processing
     format.setSampleSize(16);
     format.setCodec("audio/pcm");
     format.setByteOrder(QAudioFormat::LittleEndian);
     format.setSampleType(QAudioFormat::SignedInt);
 
-    // 检查设备是否支持所设置的格式
+    // Check if the device supports the set format
     if (!info.isFormatSupported(format)) {
         qWarning() << "Default format not supported, trying to use the nearest.";
         format = info.nearestFormat(format);
     }
 
-    // 创建音频输入对象
+    // Create audio input object
     audioInput = new QAudioInput(info, format, this);
 
-    // 创建自定义的QIODevice来处理音频数据
+    // Create a custom QIODevice to handle audio data
     audioDevice = new AudioDevice_(this);
     audioDevice->open(QIODevice::ReadWrite);
 
-    // 初始化 DeepFilterNet
+    // Initialize DeepFilterNet
 }
 
 AudioCondition::~AudioCondition()
 {
-	delete ui;
+    delete ui;
 }
 
 void AudioCondition::on_btn_stop_clicked()
 {
-    // 停止录音
+    // Stop recording
     audioInput->stop();
 }
 
 void AudioCondition::on_btn_start_clicked()
 {
-    // 开始录音
+    // Start recording
     audioInput->start(audioDevice);
 }
 
