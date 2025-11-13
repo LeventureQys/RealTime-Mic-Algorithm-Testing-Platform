@@ -9,9 +9,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-find_package(Qt5 COMPONENTS Widgets Multimedia REQUIRED)
-
-
+find_package(Qt6 COMPONENTS Widgets Multimedia REQUIRED)
 
 add_executable(RealTime-Mic-Algorithm-Testing-Platform 
 main.cpp
@@ -20,4 +18,4 @@ AudioCondition.h
 AudioCondition.cpp
 Audio.h
 )
-target_link_libraries(RealTime-Mic-Algorithm-Testing-Platform PRIVATE Qt5::Widgets Qt5::Multimedia ${DEEPFILTERNET_LIB})
+target_link_libraries(RealTime-Mic-Algorithm-Testing-Platform PRIVATE Qt6::Widgets Qt6::Multimedia ${DEEPFILTERNET_LIB})

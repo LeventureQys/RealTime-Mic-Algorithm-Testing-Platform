@@ -1,61 +1,74 @@
 #include "AudioCondition.h"
+#include <QMediaDevices>
+#include <QAudioDevice>
 
 AudioCondition::AudioCondition(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::AudioConditionClass())
+    , audioSource(nullptr)
+    , audioDevice(nullptr)
 {
     ui->setupUi(this);
-    // Get the default audio input device
-    QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
 
-    // Set the audio format
+    // 获取默认音频输入设备
+    QAudioDevice inputDeviceInfo = QMediaDevices::defaultAudioInput();
+
+    // 设置音频格式
     QAudioFormat format;
     format.setSampleRate(48000);
-    format.setChannelCount(1);  // Use mono for easier processing
-    format.setSampleSize(16);
-    format.setCodec("audio/pcm");
-    format.setByteOrder(QAudioFormat::LittleEndian);
-    format.setSampleType(QAudioFormat::SignedInt);
+    format.setChannelConfig(QAudioFormat::ChannelConfigMono);  // 使用单声道以便于处理
+    format.setSampleFormat(QAudioFormat::Int16);  // 16位有符号整数
 
-    // Check if the device supports the set format
-    if (!info.isFormatSupported(format)) {
-        qWarning() << "Default format not supported, trying to use the nearest.";
-        format = info.nearestFormat(format);
+    // 检查设备是否支持设置的格式
+    if (!inputDeviceInfo.isFormatSupported(format)) {
+        qWarning() << "默认格式不支持，尝试使用默认格式。";
+        // Qt6 没有 nearestFormat，系统会尽力适配
     }
 
-    // Create audio input object
-    audioInput = new QAudioInput(info, format, this);
+    // 创建音频源对象（Qt6: QAudioInput -> QAudioSource）
+    audioSource = new QAudioSource(inputDeviceInfo, format, this);
 
-    // Create a custom QIODevice to handle audio data
+    // 创建自定义 QIODevice 来处理音频数据
     audioDevice = new AudioDevice_(this);
     audioDevice->open(QIODevice::ReadWrite);
 
-    // Initialize DeepFilterNet
+    // 初始化 DeepFilterNet
 }
 
 AudioCondition::~AudioCondition()
 {
+    if (audioSource) {
+        audioSource->stop();
+    }
     delete ui;
 }
 
 void AudioCondition::on_btn_stop_clicked()
 {
-    // Stop recording
-    audioInput->stop();
+    // 停止录音
+    if (audioSource) {
+        audioSource->stop();
+    }
 }
 
 void AudioCondition::on_btn_start_clicked()
 {
-    // Start recording
-    audioInput->start(audioDevice);
+    // 开始录音
+    if (audioSource && audioDevice) {
+        audioSource->start(audioDevice);
+    }
 }
 
 void AudioCondition::on_cbx_algorithm_clicked(bool blnchecked)
 {
-    audioDevice->setDF(blnchecked);
+    if (audioDevice) {
+        audioDevice->setDF(blnchecked);
+    }
 }
 
 void AudioCondition::on_cbx_monitoring_clicked(bool blnchecked)
 {
-    audioDevice->setReturn(blnchecked);
+    if (audioDevice) {
+        audioDevice->setReturn(blnchecked);
+    }
 }

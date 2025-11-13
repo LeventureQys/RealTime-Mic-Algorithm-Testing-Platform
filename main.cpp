@@ -1,5 +1,8 @@
 #include <stdio.h>
-
-int main(int, char**){
-    printf("Hello, from RealTime-Mic-Algorithm-Testing-Platform!\n");
+#include "AudioCondition.h"
+int main(int argc, char** argv){
+    QApplication a(argc, argv);
+    AudioCondition condition;
+    condition.show();
+    return a.exec();
 }
