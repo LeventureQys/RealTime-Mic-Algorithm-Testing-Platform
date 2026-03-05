@@ -2,29 +2,69 @@
 
 #include <QMainWindow>
 #include <QAudioSource>
-#include "ui_AudioCondition.h"
-#include "Audio.h"
+#include <QLabel>
+#include <QPushButton>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QGroupBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGridLayout>
+#include <QSplitter>
+#include <QStatusBar>
+#include <QDateTime>
+#include <QElapsedTimer>
+#include <QTimer>
 
-QT_BEGIN_NAMESPACE
-namespace Ui { class AudioConditionClass; };
-QT_END_NAMESPACE
+#include "Audio.h"
+#include "LevelMeter.h"
+#include "SpectrumWidget.h"
 
 class AudioCondition : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    AudioCondition(QWidget* parent = nullptr);
+    explicit AudioCondition(QWidget* parent = nullptr);
     ~AudioCondition();
 
 private slots:
-    void on_btn_stop_clicked();
-    void on_btn_start_clicked();
-    void on_cbx_algorithm_clicked(bool blnchecked);
-    void on_cbx_monitoring_clicked(bool blnchecked);
+    void onStartClicked();
+    void onStopClicked();
+    void onRecordClicked();
+    void onAlgorithmToggled(bool checked);
+    void onMonitoringToggled(bool checked);
+    void onInputLevelChanged(float dBFS);
+    void onOutputLevelChanged(float dBFS);
+    void onSpectrumUpdated(const QVector<float>& magnitudes);
+    void updateRecordingTime();
 
 private:
-    Ui::AudioConditionClass* ui;
-    QAudioSource* audioSource;  // Qt6: QAudioInput -> QAudioSource
-    AudioDevice_* audioDevice;
+    void buildUI();
+    void applyDarkTheme();
+    void setRunning(bool running);
+
+    // Audio engine
+    QAudioSource*  m_audioSource  = nullptr;
+    AudioDevice_*  m_audioDevice  = nullptr;
+
+    // -- UI widgets (built in code, no .ui file) --
+    // Control panel
+    QPushButton*   m_btnStart     = nullptr;
+    QPushButton*   m_btnStop      = nullptr;
+    QPushButton*   m_btnRecord    = nullptr;
+    QCheckBox*     m_cbxAlgo      = nullptr;
+    QCheckBox*     m_cbxMonitor   = nullptr;
+    QLabel*        m_lblStatus    = nullptr;
+    QLabel*        m_lblRecTime   = nullptr;
+
+    // Visualisation
+    LevelMeter*    m_meterIn      = nullptr;
+    LevelMeter*    m_meterOut     = nullptr;
+    SpectrumWidget* m_spectrum    = nullptr;
+
+    // Recording state
+    QTimer*        m_recTimer     = nullptr;
+    QElapsedTimer  m_recElapsed;
+    bool           m_isRunning    = false;
 };
