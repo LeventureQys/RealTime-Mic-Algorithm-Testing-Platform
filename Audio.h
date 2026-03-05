@@ -127,37 +127,49 @@ public:
     AudioOutputThread(QMutex* mutex, QWaitCondition* condition, QObject* parent = nullptr)
         : QThread(parent), mutex(mutex), condition(condition), audioSink(nullptr), outputIODevice(nullptr)
     {
-        QAudioFormat format;
-        format.setSampleRate(48000);
-        format.setChannelConfig(QAudioFormat::ChannelConfigMono);
-        format.setSampleFormat(QAudioFormat::Int16);
-
-        QAudioDevice outputDeviceInfo = QMediaDevices::defaultAudioOutput();
-        if (!outputDeviceInfo.isFormatSupported(format)) {
-            qDebug() << "Output format not supported";
-        }
-
-        audioSink      = new QAudioSink(outputDeviceInfo, format);
-        outputIODevice = audioSink->start();
+        initSink(QMediaDevices::defaultAudioOutput());
     }
 
     ~AudioOutputThread() {
-        if (audioSink) {
-            audioSink->stop();
-            delete audioSink;
-        }
+        stopSink();
+    }
+
+    // Call from the main thread while NOT running, or use setOutputDevice() which is thread-safe
+    void setOutputDevice(const QAudioDevice& device) {
+        mutex->lock();
+        pendingDevice    = device;
+        deviceChangePending = true;
+        condition->wakeAll();
+        mutex->unlock();
     }
 
     void run() override {
         while (!isInterruptionRequested()) {
             mutex->lock();
-            while (buffer.size() < 4800 && !isInterruptionRequested()) {
+
+            // Apply pending device change before waiting
+            if (deviceChangePending) {
+                deviceChangePending = false;
+                QAudioDevice dev = pendingDevice;
+                mutex->unlock();
+                stopSink();
+                initSink(dev);
+                mutex->lock();
+            }
+
+            while (buffer.size() < 4800 && !isInterruptionRequested() && !deviceChangePending) {
                 condition->wait(mutex, 100);
+            }
+
+            if (deviceChangePending) {
+                mutex->unlock();
+                continue;
             }
             if (isInterruptionRequested()) {
                 mutex->unlock();
                 break;
             }
+
             short output[4800];
             for (int i = 0; i < 4800; ++i) {
                 output[i] = buffer.dequeue();
@@ -185,6 +197,29 @@ private:
     QWaitCondition*  condition;
     QAudioSink*      audioSink;
     QIODevice*       outputIODevice;
+
+    QAudioDevice     pendingDevice;
+    bool             deviceChangePending = false;
+
+    void initSink(const QAudioDevice& device) {
+        QAudioFormat format;
+        format.setSampleRate(48000);
+        format.setChannelConfig(QAudioFormat::ChannelConfigMono);
+        format.setSampleFormat(QAudioFormat::Int16);
+        if (!device.isFormatSupported(format))
+            qDebug() << "Output format not supported on" << device.description();
+        audioSink      = new QAudioSink(device, format);
+        outputIODevice = audioSink->start();
+    }
+
+    void stopSink() {
+        if (audioSink) {
+            audioSink->stop();
+            delete audioSink;
+            audioSink      = nullptr;
+            outputIODevice = nullptr;
+        }
+    }
 };
 
 // ============================================================
@@ -284,6 +319,11 @@ public:
     // ---- public API ----
     void setReturn(bool v)  { blnReturn = v; }
     void setDF(bool v)      { blnDF     = v; }
+
+    // Switch the playback output device at runtime (safe to call while running)
+    void setOutputDevice(const QAudioDevice& device) {
+        outputThread->setOutputDevice(device);
+    }
 
     bool startRecording(const QString& path) {
         if (blnRecording) return false;

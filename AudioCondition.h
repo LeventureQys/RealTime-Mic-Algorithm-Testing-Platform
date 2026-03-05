@@ -15,6 +15,8 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QMediaDevices>
+#include <QAudioDevice>
 
 #include "Audio.h"
 #include "LevelMeter.h"
@@ -38,17 +40,29 @@ private slots:
     void onOutputLevelChanged(float dBFS);
     void onSpectrumUpdated(const QVector<float>& magnitudes);
     void updateRecordingTime();
+    void onInputDeviceChanged(int index);
+    void onOutputDeviceChanged(int index);
 
 private:
     void buildUI();
     void applyDarkTheme();
     void setRunning(bool running);
+    void populateDeviceCombos();
+    void rebuildAudioSource(const QAudioDevice& device);
 
     // Audio engine
     QAudioSource*  m_audioSource  = nullptr;
     AudioDevice_*  m_audioDevice  = nullptr;
 
-    // -- UI widgets (built in code, no .ui file) --
+    // Device lists (cached at startup)
+    QList<QAudioDevice> m_inputDevices;
+    QList<QAudioDevice> m_outputDevices;
+
+    // -- UI widgets --
+    // Device selectors
+    QComboBox*     m_cbxInputDev  = nullptr;
+    QComboBox*     m_cbxOutputDev = nullptr;
+
     // Control panel
     QPushButton*   m_btnStart     = nullptr;
     QPushButton*   m_btnStop      = nullptr;

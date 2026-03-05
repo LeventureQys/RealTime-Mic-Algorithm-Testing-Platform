@@ -6,7 +6,6 @@
 #include <QMessageBox>
 #include <QApplication>
 #include <QScreen>
-
 // ─────────────────────────────────────────────
 // Constructor / Destructor
 // ─────────────────────────────────────────────
@@ -45,6 +44,7 @@ AudioCondition::AudioCondition(QWidget* parent)
 
     buildUI();
     applyDarkTheme();
+    populateDeviceCombos();  // 填充设备列表（在 buildUI 之后）
     setRunning(false);
 }
 
@@ -93,6 +93,29 @@ void AudioCondition::buildUI()
     auto* leftVBox  = new QVBoxLayout(leftPanel);
     leftVBox->setContentsMargins(0, 0, 4, 0);
     leftVBox->setSpacing(8);
+
+    // ── 设备选择 ──────────────────────────────────
+    auto* grpDevice  = new QGroupBox("音频设备", leftPanel);
+    auto* deviceGrid = new QGridLayout(grpDevice);
+    deviceGrid->setContentsMargins(8, 16, 8, 8);
+    deviceGrid->setSpacing(5);
+    deviceGrid->setColumnStretch(1, 1);
+
+    auto* lblIn  = new QLabel("输入：", grpDevice);
+    auto* lblOut = new QLabel("输出：", grpDevice);
+    lblIn->setObjectName("keyLabel");
+    lblOut->setObjectName("keyLabel");
+
+    m_cbxInputDev  = new QComboBox(grpDevice);
+    m_cbxOutputDev = new QComboBox(grpDevice);
+    m_cbxInputDev->setToolTip("选择麦克风/录音设备");
+    m_cbxOutputDev->setToolTip("选择耳返/监听播放设备");
+
+    deviceGrid->addWidget(lblIn,           0, 0);
+    deviceGrid->addWidget(m_cbxInputDev,   0, 1);
+    deviceGrid->addWidget(lblOut,          1, 0);
+    deviceGrid->addWidget(m_cbxOutputDev,  1, 1);
+    leftVBox->addWidget(grpDevice);
 
     // ── 传输控制 ──────────────────────────────────
     auto* grpTransport  = new QGroupBox("传输控制", leftPanel);
@@ -224,6 +247,10 @@ void AudioCondition::buildUI()
     connect(m_btnRecord,  &QPushButton::clicked, this, &AudioCondition::onRecordClicked);
     connect(m_cbxAlgo,    &QCheckBox::toggled,   this, &AudioCondition::onAlgorithmToggled);
     connect(m_cbxMonitor, &QCheckBox::toggled,   this, &AudioCondition::onMonitoringToggled);
+    connect(m_cbxInputDev,  QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &AudioCondition::onInputDeviceChanged);
+    connect(m_cbxOutputDev, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &AudioCondition::onOutputDeviceChanged);
 }
 
 // ─────────────────────────────────────────────
@@ -325,6 +352,28 @@ void AudioCondition::applyDarkTheme()
 
         QSplitter::handle       { background: #252838; }
         QSplitter::handle:hover { background: #404360; }
+
+        QComboBox {
+            background-color: #252738;
+            border: 1px solid #404360;
+            border-radius: 4px;
+            padding: 3px 6px;
+            color: #c0c4d8;
+            selection-background-color: #3060c0;
+        }
+        QComboBox:hover { border-color: #5a5e80; }
+        QComboBox:disabled { color: #505468; }
+        QComboBox::drop-down {
+            border: none;
+            width: 18px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #1e2030;
+            border: 1px solid #404360;
+            selection-background-color: #3060c0;
+            color: #c0c4d8;
+            outline: none;
+        }
     )");
 }
 
@@ -446,4 +495,75 @@ void AudioCondition::updateRecordingTime()
     m_lblRecTime->setText(QString("● %1:%2")
                           .arg(mm, 2, 10, QChar('0'))
                           .arg(ss, 2, 10, QChar('0')));
+}
+
+// ─────────────────────────────────────────────
+// Device management
+// ─────────────────────────────────────────────
+void AudioCondition::populateDeviceCombos()
+{
+    // Temporarily block signals so filling the combo doesn't trigger onInputDeviceChanged
+    m_cbxInputDev->blockSignals(true);
+    m_cbxOutputDev->blockSignals(true);
+
+    m_inputDevices  = QMediaDevices::audioInputs();
+    m_outputDevices = QMediaDevices::audioOutputs();
+    QAudioDevice defaultIn  = QMediaDevices::defaultAudioInput();
+    QAudioDevice defaultOut = QMediaDevices::defaultAudioOutput();
+
+    int selIn = 0, selOut = 0;
+    for (int i = 0; i < m_inputDevices.size(); ++i) {
+        const auto& d = m_inputDevices[i];
+        m_cbxInputDev->addItem(d.description());
+        if (d.id() == defaultIn.id()) selIn = i;
+    }
+    for (int i = 0; i < m_outputDevices.size(); ++i) {
+        const auto& d = m_outputDevices[i];
+        m_cbxOutputDev->addItem(d.description());
+        if (d.id() == defaultOut.id()) selOut = i;
+    }
+
+    m_cbxInputDev->setCurrentIndex(selIn);
+    m_cbxOutputDev->setCurrentIndex(selOut);
+
+    m_cbxInputDev->blockSignals(false);
+    m_cbxOutputDev->blockSignals(false);
+}
+
+void AudioCondition::rebuildAudioSource(const QAudioDevice& device)
+{
+    bool wasRunning = m_isRunning;
+
+    // Stop current capture if active
+    if (wasRunning) {
+        m_audioSource->stop();
+    }
+
+    delete m_audioSource;
+
+    QAudioFormat format;
+    format.setSampleRate(48000);
+    format.setChannelConfig(QAudioFormat::ChannelConfigMono);
+    format.setSampleFormat(QAudioFormat::Int16);
+
+    m_audioSource = new QAudioSource(device, format, this);
+
+    // Restart if it was running before
+    if (wasRunning) {
+        m_audioSource->start(m_audioDevice);
+    }
+}
+
+void AudioCondition::onInputDeviceChanged(int index)
+{
+    if (index < 0 || index >= m_inputDevices.size()) return;
+    rebuildAudioSource(m_inputDevices[index]);
+    statusBar()->showMessage(QString("输入设备已切换：%1").arg(m_inputDevices[index].description()));
+}
+
+void AudioCondition::onOutputDeviceChanged(int index)
+{
+    if (index < 0 || index >= m_outputDevices.size()) return;
+    m_audioDevice->setOutputDevice(m_outputDevices[index]);
+    statusBar()->showMessage(QString("输出设备已切换：%1").arg(m_outputDevices[index].description()));
 }
