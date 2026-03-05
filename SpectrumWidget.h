@@ -163,7 +163,7 @@ protected:
         titleFont.setPixelSize(10);
         p.setFont(titleFont);
         p.drawText(padL, 0, plotW, padT, Qt::AlignHCenter | Qt::AlignVCenter,
-                   "Spectrum (dBFS)");
+                   "幅频谱 (dBFS)");
     }
 
 private:
@@ -185,6 +185,6 @@ private:
 
     void drawNoSignal(QPainter& p, int w, int h) {
         p.setPen(QColor(70, 75, 95));
-        p.drawText(rect(), Qt::AlignCenter, "No Signal");
+        p.drawText(rect(), Qt::AlignCenter, "无信号");
     }
 };

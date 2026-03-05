@@ -38,7 +38,7 @@ static void fft(std::vector<std::complex<float>>& x)
     fft(even);
     fft(odd);
     for (size_t k = 0; k < N / 2; ++k) {
-        std::complex<float> t = std::polar(1.0f, -2.0f * M_PI * k / N) * odd[k];
+        std::complex<float> t = std::polar(1.0f, static_cast<float>(-2.0 * M_PI * static_cast<double>(k) / static_cast<double>(N))) * odd[k];
         x[k]         = even[k] + t;
         x[k + N / 2] = even[k] - t;
     }
